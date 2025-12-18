@@ -18,8 +18,6 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.managers.channel.concrete.ThreadChannelManager;
 import xyz.kohara.Config;
 import xyz.kohara.Aroki;
@@ -32,7 +30,7 @@ import java.util.regex.Pattern;
 
 public class ForumManager extends ListenerAdapter {
 
-    private static final ForumChannel SUPPORT_CHANNEL = Aroki.getServer().getForumChannelById(Config.getOption("support_channel"));
+    private static final ForumChannel SUPPORT_CHANNEL = Aroki.getServer().getForumChannelById(Config.get(Config.Option.SUPPORT_CHANNEL));
     private static final int INTERVAL_MINUTES = 15;
 
     private static final Map<String, String> replyCache = new HashMap<>();
@@ -238,7 +236,7 @@ public class ForumManager extends ListenerAdapter {
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getName().equals("close")) {
             if (event.getChannel().getType() != ChannelType.GUILD_PUBLIC_THREAD && !isSupportThread(event.getChannel().asThreadChannel())) {
-                event.reply(":x: **This command can only be used in <#" + Config.getOption("support_channel_id") + "> threads!**").setEphemeral(true).queue();
+                event.reply(":x: **This command can only be used in <#" + Config.get(Config.Option.SUPPORT_CHANNEL) + "> threads!**").setEphemeral(true).queue();
                 return;
             }
             try {

@@ -27,6 +27,7 @@ dependencies {
     implementation("org.apache.httpcomponents.core5:httpcore5:5.2")
     implementation("com.github.minndevelopment:emoji-java:master-SNAPSHOT")
     implementation("org.reflections:reflections:0.10.2")
+    implementation("com.sparkjava:spark-core:2.9.4")
 }
 
 tasks.test {

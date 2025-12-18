@@ -40,7 +40,7 @@ public class KickCommand extends ListenerAdapter {
         StringBuilder text = new StringBuilder().append(
                 "**You were kicked from " + Aroki.getServer().getName() + "**\n> Reason: *" + reason + "* ~*" + responsible.getEffectiveName() + "*"
         );
-        text.append("\nYou can still [join back](" + Config.getOption("invite") + "), just *don't* do whatever got you kicked again");
+        text.append("\nYou can still [join back](" + Config.get(Config.Option.INVITE) + "), just *don't* do whatever got you kicked again");
 
         member.getUser().openPrivateChannel().queue(privateChannel -> {
             privateChannel.sendMessage(text)
