@@ -15,6 +15,8 @@ public class WebServer {
     public static void start() {
         Aroki.log("Starting web server");
 
+        port(26980);
+
         get("/hello", (req, res) -> "Well hi there");
 
         post("/adj_finish", (request, response) -> {

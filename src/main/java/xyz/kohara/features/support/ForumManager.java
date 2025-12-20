@@ -32,8 +32,10 @@ public class ForumManager extends ListenerAdapter {
 
     private static final ForumChannel SUPPORT_CHANNEL = Aroki.getServer().getForumChannelById(Config.get(Config.Option.SUPPORT_CHANNEL));
     private static final int INTERVAL_MINUTES = 15;
+    private static final int INTERVAL = INTERVAL_MINUTES * 60 * 1000;
 
     private static final Map<String, String> replyCache = new HashMap<>();
+
     static {
         File dir = new File("data/forum/");
         File[] directoryListing = dir.listFiles();
@@ -50,6 +52,7 @@ public class ForumManager extends ListenerAdapter {
     }
 
     private static String CLOSE_COMMAND;
+
     static {
         Aroki.getServer().retrieveCommands().queue(
                 commands -> {
@@ -110,15 +113,24 @@ public class ForumManager extends ListenerAdapter {
         return embed;
     }
 
-    private static void closePost(ThreadChannel thread, String reason) throws IOException {
+    private enum ResolutionType {
+        DUPLICATE,
+        INVALID,
+        RESOLVED;
+
+        ResolutionType() {
+        }
+    }
+
+    private static void closePost(ThreadChannel thread, ResolutionType reason) throws IOException {
         List<Long> currentTagIds = new ArrayList<>(thread.getAppliedTags()
                 .stream()
                 .map(ForumTag::getIdLong)
                 .toList());
         switch (reason) {
-            case "duplicate" -> currentTagIds.add(ForumTags.DUPLICATE.getId());
-            case "invalid" -> currentTagIds.add(ForumTags.INVALID.getId());
-            case "resolved" -> currentTagIds.add(ForumTags.RESOLVED.getId());
+            case ResolutionType.DUPLICATE -> currentTagIds.add(ForumTags.DUPLICATE.getId());
+            case ResolutionType.INVALID -> currentTagIds.add(ForumTags.INVALID.getId());
+            case ResolutionType.RESOLVED -> currentTagIds.add(ForumTags.RESOLVED.getId());
         }
         currentTagIds.remove(ForumTags.OPEN.getId());
         currentTagIds.remove(ForumTags.TO_DO.getId());
@@ -156,21 +168,21 @@ public class ForumManager extends ListenerAdapter {
                 String id = channel.getId();
                 String content = event.getMessage().getContentRaw();
                 if (content.equals("✅") || content.equals("🎗️")) {
-                    String op = ForumData.getEntryValue(id, "op");
+                    String op = ForumData.getEntryValue(id, ForumData.Entry.OP);
                     switch (content) {
                         case "✅" -> {
                             if (op.equals(Objects.requireNonNull(event.getMember()).getId()) || hasThreadManagementPerms(event.getMember())) {
                                 event.getMessage().addReaction(Emoji.fromFormatted("✅")).queue();
                                 event.getChannel().sendMessage("✅").queue();
-                                closePost(channel, "resolved");
+                                closePost(channel, ResolutionType.RESOLVED);
                             }
                         }
                         case "🎗️" -> {
                             long currentTime = System.currentTimeMillis();
-                            long lastReminded = Long.parseLong(ForumData.getEntryValue(id, "last_reminded"));
+                            long lastReminded = Long.parseLong(ForumData.getEntryValue(id, ForumData.Entry.LAST_REMINDED));
                             if (currentTime - lastReminded >= 30 * 1000) {
                                 event.getMessage().addReaction(Emoji.fromFormatted("🎗️")).queue();
-                                ForumData.setEntryValue(id, "last_reminded", currentTime);
+                                ForumData.setEntryValue(id, ForumData.Entry.LAST_REMINDED, currentTime);
                                 channel.sendMessage(REMINDER_MESSAGE(op, false)).queue();
                             }
                         }
@@ -225,7 +237,7 @@ public class ForumManager extends ListenerAdapter {
             List<String> threadList = ForumData.findThreads(event.getUser());
             for (String id : threadList) {
                 ThreadChannel thread = Aroki.getServer().getChannelById(ThreadChannel.class, id);
-                if (thread != null) closePost(thread, "invalid");
+                if (thread != null) closePost(thread, ResolutionType.INVALID);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -244,12 +256,12 @@ public class ForumManager extends ListenerAdapter {
                 String id = thread.getId();
                 OptionMapping option = event.getOption("action");
                 String action = option != null ? option.getAsString() : "resolve";
-                String op = ForumData.getEntryValue(id, "op");
+                String op = ForumData.getEntryValue(id, ForumData.Entry.OP);
                 boolean isOP = op.equals(Objects.requireNonNull(event.getMember()).getId());
                 boolean staff = hasThreadManagementPerms(event.getMember());
                 if ((action.equals("resolve") && isOP) || ((action.equals("resolve") && staff))) {
                     event.reply(":white_check_mark:").queue();
-                    closePost(thread, "resolved");
+                    closePost(thread, ResolutionType.INVALID);
                 } else if (action.equals("invalid") && staff) {
                     OptionMapping note = event.getOption("note");
                     Aroki.getBot().retrieveUserById(op).queue(
@@ -270,8 +282,8 @@ public class ForumManager extends ListenerAdapter {
                                                     "*" + note.getAsString() + "*"
                                                     : "*No notes provided*")
                     ).queue();
-                    closePost(thread, "invalid");
-                } else if (action.equals("duplicate") && staff){
+                    closePost(thread, ResolutionType.INVALID);
+                } else if (action.equals("duplicate") && staff) {
                     OptionMapping od = event.getOption("duplicate_of");
                     if (od == null) {
                         event.reply(":x: **You need to set what thread this duplicates!**").setEphemeral(true).queue();
@@ -298,7 +310,7 @@ public class ForumManager extends ListenerAdapter {
                                             "*" + note.getAsString() + "*"
                                             : "*No notes provided*");
                     event.reply(text).queue();
-                    closePost(thread, "duplicate");
+                    closePost(thread, ResolutionType.DUPLICATE);
                 } else {
                     event.reply(":x: **This is not your support thread or you don't have permission to do that**").setEphemeral(true).queue();
                 }
@@ -309,8 +321,13 @@ public class ForumManager extends ListenerAdapter {
     }
 
     public static void scheduleReminderCheck() {
+        Aroki.log("Starting automatic reminder timed task...");
         Timer timer = new Timer(true);
         timer.scheduleAtFixedRate(new TimerTask() {
+            static {
+                Aroki.log("Initialized forum auto reminder timed task, scheduled to run every " + INTERVAL_MINUTES + " minutes");
+            }
+
             @Override
             public void run() {
                 List<String> threads;
@@ -322,17 +339,41 @@ public class ForumManager extends ListenerAdapter {
                         if (thread == null) {
                             ForumData.removeEntry(entry);
                             continue;
-                        };
+                        }
                         List<Long> tags = new ArrayList<>(thread.getAppliedTags()
                                 .stream()
                                 .map(ForumTag::getIdLong)
                                 .toList());
                         if (tags.contains(ForumTags.TO_DO.getId()) || thread.isPinned()) continue;
-                        lastReminded = Long.parseLong(ForumData.getEntryValue(entry, "last_reminded"));
+                        lastReminded = Long.parseLong(ForumData.getEntryValue(entry, ForumData.Entry.LAST_REMINDED));
                         long currentTime = System.currentTimeMillis();
                         if (currentTime - lastReminded >= 72 * 60 * 60 * 1000) {
-                            ForumData.setEntryValue(entry, "last_reminded", currentTime);
-                            String op = ForumData.getEntryValue(entry, "op");
+                            String op = ForumData.getEntryValue(entry, ForumData.Entry.OP);
+
+                            int autoRemindTime = Integer.parseInt(ForumData.getEntryValue(entry, ForumData.Entry.REMIND_AMOUNT));
+                            autoRemindTime++;
+                            if (autoRemindTime > 3) {
+                                Aroki.getBot().retrieveUserById(op).queue(
+                                        user -> Aroki.sendDM(user, INVALID_MESSAGE(true)
+                                                .replace("{THREAD}", thread.getAsMention())
+                                                .replace(
+                                                        "{NOTE}",
+                                                        "*Closed automatically due to inactivity  ~Aroki*"
+                                                )
+                                        )
+                                );
+                                thread.sendMessage(
+                                        INVALID_MESSAGE(false)
+                                                .replace(
+                                                        "{NOTE}",
+                                                        "*Closed automatically due to inactivity*"
+                                                )
+                                ).queue();
+                                closePost(thread, ResolutionType.INVALID);
+                                return;
+                            }
+                            ForumData.setEntryValue(entry, ForumData.Entry.REMIND_AMOUNT, autoRemindTime);
+                            ForumData.setEntryValue(entry, ForumData.Entry.LAST_REMINDED, currentTime);
                             thread.sendMessage(REMINDER_MESSAGE(op, true)).queue();
                         }
                     }
@@ -341,6 +382,6 @@ public class ForumManager extends ListenerAdapter {
                 }
 
             }
-        }, 100, INTERVAL_MINUTES * 60 * 1000);
+        }, 5000, INTERVAL);
     }
 }

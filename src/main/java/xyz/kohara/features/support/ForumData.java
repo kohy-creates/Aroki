@@ -41,13 +41,27 @@ public class ForumData {
         }
     }
 
+    public enum Entry {
+        OP("op"),
+        REMIND_AMOUNT("remind_amount"),
+        CREATION_DATE("creation_date"),
+        LAST_REMINDED("last_reminded");
+
+        private final String id;
+
+        Entry(String id) {
+            this.id = id;
+        }
+    }
+
     public static void addEntry(String key, String op, long creationDate) throws IOException {
         JsonObject json = loadJson();
 
         JsonObject entry = new JsonObject();
-        entry.addProperty("op", op);
-        entry.addProperty("creation_date", creationDate);
-        entry.addProperty("last_reminded", creationDate);
+        entry.addProperty(Entry.OP.id, op);
+        entry.addProperty(Entry.REMIND_AMOUNT.id, 0);
+        entry.addProperty(Entry.CREATION_DATE.id, creationDate);
+        entry.addProperty(Entry.LAST_REMINDED.id, creationDate);
 
         json.add(key, entry);
         saveJson(json);
@@ -66,14 +80,22 @@ public class ForumData {
         return json.has(key);
     }
 
-    public static String getEntryValue(String key, String field) throws IOException {
+    public static String getEntryValue(String key, Entry field) throws IOException {
         JsonObject json = loadJson();
-        return json.getAsJsonObject(key).get(field).getAsString();
+        JsonObject entry = json.getAsJsonObject(key);
+        String value = "0";
+        if (entry.has(field.id)) {
+            value = entry.get(field.id).getAsString();
+        }
+        else {
+            entry.addProperty(field.id, value);
+        }
+        return value;
     }
 
-    public static void setEntryValue(String key, String field, long value) throws IOException {
+    public static void setEntryValue(String key, Entry field, long value) throws IOException {
         JsonObject json = loadJson();
-        json.getAsJsonObject(key).addProperty(field, value);
+        json.getAsJsonObject(key).addProperty(field.id, value);
         saveJson(json);
     }
 

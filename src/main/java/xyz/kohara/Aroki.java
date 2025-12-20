@@ -143,9 +143,7 @@ public class Aroki {
     }
 
     public static void log(String text, Level level) {
-        Logger.getLogger(
-                StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).getCallerClass().getName()
-        ).log(level, text);
+        Logger.getLogger(Aroki.class.getName()).log(level, text);
     }
 
     public static String getPlayerFromUUID(String uuid) throws IOException, URISyntaxException {
