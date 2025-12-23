@@ -25,7 +25,7 @@ public class MessageListener extends ListenerAdapter {
     private static final Map<Member, String> tagMessagesTemp = new HashMap<>();
     private static final Map<String, String> tagValuesTemp = new HashMap<>();
 
-    private static final String PREFIX = Config.getOption("tag_prefix");
+    private static final String PREFIX = Config.get(Config.Option.TAG_PREFIX);
 
     private static final double REQUIRED_SIMILARITY = 0.75;
 

@@ -19,7 +19,7 @@ public enum ForumTags {
     }
 
     private static Long parseConfig(String key) {
-        String value = Config.getOption(key);
+        String value = Config.get(Config.Option.valueOf(key.toUpperCase()));
         if (value == null) {
             throw new RuntimeException("Config key '" + key + "' is missing or null!");
         }

@@ -9,8 +9,8 @@ import xyz.kohara.Config;
 
 public class AutoRole extends ListenerAdapter {
 
-    private static final Role MORTALS_ROLE = Aroki.getServer().getRoleById(Config.getOption("mortals_role"));
-    private static final Role BOT_ROLE = Aroki.getServer().getRoleById(Config.getOption("mortals_role"));
+    private static final Role MORTALS_ROLE = Aroki.getServer().getRoleById(Config.get(Config.Option.MORTALS_ROLE));
+    private static final Role BOT_ROLE = Aroki.getServer().getRoleById(Config.get(Config.Option.BOT_ROLE));
 
     @Override
     public void onGuildMemberJoin(GuildMemberJoinEvent event) {

@@ -10,7 +10,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class Config {
@@ -18,22 +17,40 @@ public class Config {
     private static final Map<String, String> CONFIG;
     private static final String configPath = "data/config.json";
 
-    private static final List<String> configEntries = List.of(
-            "token", "CHANGE_ME",
-            "server_id", "0000",
-            "staff_role_id", "0000",
-            "dev_role_id", "0000",
-            "bot_name", "Aroki",
-            "support_channel", "0000",
-            "invalid_tag_id", "0000",
-            "open_tag_id", "0000",
-            "resolved_tag_id", "0000",
-            "to_do_tag_id", "0000",
-            "duplicate_tag_id", "0000",
-            "tag_prefix", "!",
-            "mortals_role", "0000",
-            "invite", "https://example.com/"
-    );
+    public enum Option {
+        TOKEN("CHANGE_ME"),
+        SERVER_ID("0000"),
+        STAFF_ROLE_ID("0000"),
+        DEV_ROLE_ID("0000"),
+        BOT_NAME("Aroki"),
+        SUPPORT_CHANNEL("0000"),
+        INVALID_TAG_ID("0000"),
+        OPEN_TAG_ID("0000"),
+        RESOLVED_TAG_ID("0000"),
+        TO_DO_TAG_ID("0000"),
+        DUPLICATE_TAG_ID("0000"),
+        TAG_PREFIX("!"),
+        MORTALS_ROLE("0000"),
+        BOT_ROLE("0000"),
+        INVITE("https://example.com/"),
+        ADJ_INFO_CHANNEL("0000");
+
+        private final String defaultValue;
+
+        Option(String defaultValue) {
+            this.defaultValue = defaultValue;
+        }
+
+        public String getDefaultValue() {
+            return this.defaultValue;
+        }
+
+        public String getConfigEntryName() {
+            return this.name().toLowerCase();
+        }
+
+    }
+
 
     static {
         tryCreateConfigFile();
@@ -51,11 +68,10 @@ public class Config {
 
         // Fill missing entries from configEntries list
         boolean updated = false;
-        for (int i = 0; i < configEntries.size(); i += 2) {
-            String key = configEntries.get(i);
-            String value = configEntries.get(i + 1);
-            if (!loaded.containsKey(key)) {
-                loaded.put(key, value);
+        for (Option option : Option.values()) {
+            String name = option.getConfigEntryName();
+            if (!loaded.containsKey(name)) {
+                loaded.put(name, option.getDefaultValue());
                 updated = true;
             }
         }
@@ -87,7 +103,7 @@ public class Config {
         }
     }
 
-    public static String getOption(String config) {
-        return CONFIG.get(config);
+    public static String get(Option option) {
+        return CONFIG.get(option.getConfigEntryName());
     }
 }

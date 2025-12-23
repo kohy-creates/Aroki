@@ -52,6 +52,15 @@ public class SlashCommands {
                 )
         );
 
+        COMMANDS.add(Commands.slash("link", "Links your MC account and Discord for some cool shenanigans")
+                .addOption(OptionType.INTEGER, "code", "4 digit code you got from /link in-game", true)
+        );
+
+        COMMANDS.add(Commands.slash("unlink", "Unlinks your MC and Discord accounts"));
+
+        COMMANDS.add(Commands.slash("getlinked", "Get specified member's linked Minecraft account")
+                .addOption(OptionType.USER, "target", "Target member"));
+
         COMMANDS.addAll(MusicSlashCommands.MUSIC_COMMANDS);
         COMMANDS.addAll(ModerationSlashCommands.MODERATION_COMMANDS);
     }

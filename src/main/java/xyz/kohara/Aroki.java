@@ -1,5 +1,7 @@
 package xyz.kohara;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Guild;
@@ -15,18 +17,24 @@ import org.reflections.Reflections;
 import xyz.kohara.features.commands.SlashCommands;
 import xyz.kohara.features.support.ForumManager;
 import xyz.kohara.status.BotActivity;
+import xyz.kohara.web.WebServer;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.*;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+
 public class Aroki {
 
-    private static final String token = Config.getOption("token");
+    private static final String token = Config.get(Config.Option.TOKEN);
     private static final GatewayIntent[] intents = {GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MEMBERS};
 
     private static JDA BOT;
-    private static final String BOT_NAME = Config.getOption("bot_name");
+    private static final String BOT_NAME = Config.get(Config.Option.BOT_NAME);
     private static Guild BASEMENT;
     private static Role STAFF_ROLE, DEV_ROLE;
 
@@ -39,9 +47,9 @@ public class Aroki {
 
         BOT.awaitReady();
 
-        BASEMENT = BOT.getGuildById(Config.getOption("server_id"));
-        STAFF_ROLE = BOT.getRoleById(Config.getOption("staff_role_id"));
-        DEV_ROLE = BOT.getRoleById(Config.getOption("dev_role_id"));
+        BASEMENT = BOT.getGuildById(Config.get(Config.Option.SERVER_ID));
+        STAFF_ROLE = BOT.getRoleById(Config.get(Config.Option.STAFF_ROLE_ID));
+        DEV_ROLE = BOT.getRoleById(Config.get(Config.Option.DEV_ROLE_ID));
 
         // Add all listeners dynamically through a reflection
         getAllListeners().forEach(listenerAdapter -> {
@@ -53,7 +61,9 @@ public class Aroki {
         ForumManager.scheduleReminderCheck();
         BotActivity.schedule();
 
-        log(BOT_NAME + " has successfully finished startup", Level.INFO);
+        log(BOT_NAME + " has successfully finished startup");
+
+        WebServer.start();
     }
 
     private static List<ListenerAdapter> getAllListeners() {
@@ -133,8 +143,39 @@ public class Aroki {
     }
 
     public static void log(String text, Level level) {
-        Logger.getLogger(
-                StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).getCallerClass().getName()
-        ).log(level, text);
+        Logger.getLogger(Aroki.class.getName()).log(level, text);
     }
+
+    public static String getPlayerFromUUID(String uuid) throws IOException, URISyntaxException {
+        return getPlayerFromUUID(UUID.fromString(uuid));
+    }
+
+    public static String getPlayerFromUUID(UUID uuid) throws IOException, URISyntaxException {
+        String apiUrl = "https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.toString().replace("-", "");
+        URL url = new URI(apiUrl).toURL();
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        con.setConnectTimeout(5000);
+        con.setReadTimeout(5000);
+
+        int status = con.getResponseCode();
+
+        if (status != 200) {
+            return null;
+        }
+        BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+        StringBuilder response = new StringBuilder();
+        String line;
+
+        while ((line = in.readLine()) != null) {
+            response.append(line);
+        }
+
+        in.close();
+        con.disconnect();
+
+        JsonObject json = JsonParser.parseString(response.toString()).getAsJsonObject();
+        return json.get("name").getAsString();
+    }
+
 }
