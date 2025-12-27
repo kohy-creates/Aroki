@@ -261,7 +261,7 @@ public class ForumManager extends ListenerAdapter {
                 boolean staff = hasThreadManagementPerms(event.getMember());
                 if ((action.equals("resolve") && isOP) || ((action.equals("resolve") && staff))) {
                     event.reply(":white_check_mark:").queue();
-                    closePost(thread, ResolutionType.INVALID);
+                    closePost(thread, ResolutionType.RESOLVED);
                 } else if (action.equals("invalid") && staff) {
                     OptionMapping note = event.getOption("note");
                     Aroki.getBot().retrieveUserById(op).queue(
