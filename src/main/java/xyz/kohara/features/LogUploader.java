@@ -7,6 +7,7 @@ package xyz.kohara.features;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -15,15 +16,18 @@ import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.message.BasicNameValuePair;
 import xyz.kohara.Aroki;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -33,7 +37,16 @@ import java.util.zip.GZIPInputStream;
 
 public class LogUploader extends ListenerAdapter {
 
-    private static final List<String> STORED_IDS = new ArrayList<>();
+    private static final Map<String, String> LOG_TIPS = Map.of(
+            "java.lang.OutOfMemoryError",
+            "`OutOfMemoryError` - JVM ran out of memory! Consider increasing your heap size.",
+
+            "java.lang.AbstractMethodError",
+            "`AbstractMethodError` - Sinytra Connector likely did something wrong while translating Fabric mods over to Forge. Consider clearing Connector mod cache (delete folder `.connector` inside `mods` folder and relaunch the game).",
+
+            "- Essential",
+            "`Essential` mod is redundant as ADJ has built-in world hosting feature, couretsy of the E4MC mod."
+    );
 
     private static final List<String> DISCONTINUED_VERSIONS = List.of(
             "1.20.4",
@@ -45,10 +58,10 @@ public class LogUploader extends ListenerAdapter {
             "1.21.6"
     );
 
-    private static final File LOGS_FOLDER;
+    private static final List<String> STORED_IDS = new ArrayList<>();
+    private static final File LOGS_FOLDER = new File("logs_temp");
 
     static {
-        LOGS_FOLDER = new File("logs_temp");
         if (!LOGS_FOLDER.exists()) {
             LOGS_FOLDER.mkdir();
         }
@@ -84,7 +97,7 @@ public class LogUploader extends ListenerAdapter {
         }
 
         validAttachments.forEach(att -> {
-            var attachment = (net.dv8tion.jda.api.entities.Message.Attachment) att;
+            var attachment = (Message.Attachment) att;
             String extension = attachment.getFileExtension();
             extension = extension.equals("gz") ? "info" : extension;
 
@@ -132,27 +145,56 @@ public class LogUploader extends ListenerAdapter {
 
     private void uploadAndSendLinks(Map<File, String> fileMap, MessageReceivedEvent event) {
         Map<String, List<String>> uploads = new HashMap<>();
-        for (Map.Entry<File, String> entry : fileMap.entrySet()) {
+        Map<String, List<String>> tips = new HashMap<>();
+
+		for (Map.Entry<File, String> entry : fileMap.entrySet()) {
             File tempFile = entry.getKey();
             String originalName = entry.getValue();
+
             try {
-                List<String> url = uploadToMclogs(tempFile);
-                uploads.put(originalName, url);
+                UploadResult result = uploadToMclogs(tempFile);
+                uploads.put(originalName, result.apiResult);
+
+                if (!result.tips.isEmpty()) {
+                    tips.put(originalName, result.tips);
+                }
+
                 tempFile.delete();
             } catch (IOException e) {
-                event.getChannel().sendMessage("❌ Error uploading file `" + originalName + "`").queue();
-                deleteLastUploadMessage(event.getChannel());
-                e.printStackTrace();
+                event.getChannel().sendMessage(":warning: Error uploading file `" + originalName + "`").queue();
             }
         }
+
 
         if (!uploads.isEmpty()) {
 
             MessageCreateBuilder builder = new MessageCreateBuilder();
             builder.setContent("");
+
+            if (!tips.isEmpty()) {
+                StringBuilder builder1 = new StringBuilder();
+
+                if (uploads.size() == 1) {
+                    builder1.append(":warning: **I have briefly analyzed your log file, here's what I can advise:**\n");
+
+                    tips.forEach((s, strings) -> strings.forEach(s1 -> builder1.append("* ").append(s1).append("\n")));
+                }
+                else {
+                    builder1.append(":warning: **I have briefly analyzed your log files, here's what I can advise:**\n");
+                    tips.forEach((s, strings) -> {
+                        builder1.append("* `").append(s).append("`:\n");
+                        strings.forEach(s1 -> builder1.append("  * ").append(s1).append("\n"));
+                    });
+                }
+
+                builder.setContent(String.valueOf(builder1));
+            }
+
             // 'key' is the original file name
+            boolean separateRows = false;
+            List<Button> buttonsOuter = new ArrayList<>();
             for (String key : uploads.keySet()) {
-                ArrayList<Button> buttons = new ArrayList<>();
+                List<Button> buttons = new ArrayList<>();
                 List<String> data = uploads.get(key);
                 String url = data.getFirst();
                 buttons.add(Button.link(url, key).withEmoji(Emoji.fromFormatted("<:mclogs:1359506468344299530>")));
@@ -161,51 +203,59 @@ public class LogUploader extends ListenerAdapter {
                     We don't add the 2nd button with quick info if it's a random ass txt file.
                 */
                 if (data.size() > 2) {
+                    separateRows = true;
                     String name = data.get(1), type = data.get(2), version = data.get(3);
                     // This could also be inlined but I left it like this so that it's at least slightly easier to work with
                     String label = name + " " + type + " (" + version + ")";
                     if (isDiscontinued(version)) {
-                        buttons.add(
-                                Button.danger(key, label)
-                                        .withEmoji(Emoji.fromFormatted("📜"))
-                                        .asDisabled()
+                        buttons.add(Button.danger(key, label)
+                                .withEmoji(Emoji.fromFormatted("📜"))
+                                .asDisabled()
                         );
                     } else {
-                        buttons.add(
-                                Button.primary(key, label)
-                                        .withEmoji(Emoji.fromFormatted("📜"))
-                                        .asDisabled()
+                        buttons.add(Button.primary(key, label)
+                                .withEmoji(Emoji.fromFormatted("📜"))
+                                .asDisabled()
                         );
                     }
                 }
-                builder.addActionRow(buttons);
+                if (separateRows) {
+                    builder.addActionRow(buttons);
+                }
+                else {
+                    buttonsOuter.addAll(buttons);
+                }
             }
+            if (!separateRows) builder.addActionRow(buttonsOuter);
             deleteLastUploadMessage(event.getChannel());
             event.getMessage().reply(builder.build()).mentionRepliedUser(false).queue();
         }
     }
 
-    private List<String> uploadToMclogs(File file) throws IOException {
+    private UploadResult uploadToMclogs(File file) throws IOException {
         StringBuilder sb = new StringBuilder();
+        List<String> tips = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line).append('\n');
-                if (sb.length() > 10_000_000) {
-                    throw new IOException("Log too large");
+
+                for (String key : LOG_TIPS.keySet()) {
+                    if (line.contains(key) && !tips.contains(LOG_TIPS.get(key))) {
+                        tips.add(LOG_TIPS.get(key));
+                    }
                 }
+
+                if (sb.length() > 10_000_000) throw new IOException("Log too large");
             }
         }
 
         try (CloseableHttpClient client = HttpClients.createDefault()) {
             HttpPost post = new HttpPost("https://api.mclo.gs/1/log");
-
-            post.setEntity(new org.apache.hc.client5.http.entity.UrlEncodedFormEntity(
-                    List.of(new org.apache.hc.core5.http.message.BasicNameValuePair(
-                            "content", sb.toString()
-                    )),
-                    java.nio.charset.StandardCharsets.UTF_8
+            post.setEntity(new UrlEncodedFormEntity(
+                    List.of(new BasicNameValuePair("content", sb.toString())),
+                    StandardCharsets.UTF_8
             ));
 
             try (CloseableHttpResponse response = client.execute(post)) {
@@ -218,15 +268,14 @@ public class LogUploader extends ListenerAdapter {
 
                 String url = jsonNode.get("url").asText();
                 String id = jsonNode.get("id").asText();
+                List<String> apiResult = new ArrayList<>();
+                apiResult.add(url);
+                apiResult.addAll(getLogTitle(id));
 
-                List<String> resultList = new ArrayList<>();
-                resultList.add(url);
-                resultList.addAll(getLogTitle(id));
-                return resultList;
+                return new UploadResult(tips, apiResult);
             }
         }
     }
-
 
     private List<String> getLogTitle(String id) throws IOException {
         try (CloseableHttpClient client = HttpClients.createDefault()) {
@@ -280,5 +329,15 @@ public class LogUploader extends ListenerAdapter {
             }
         }
         return false;
+    }
+
+    private static class UploadResult {
+        public List<String> tips;
+        public List<String> apiResult;
+
+        public UploadResult(List<String> tips, List<String> apiResult) {
+            this.tips = tips;
+            this.apiResult = apiResult;
+        }
     }
 }
