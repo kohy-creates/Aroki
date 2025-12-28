@@ -13,7 +13,7 @@ public class WebServer {
     private static final Gson GSON = new Gson();
 
     public static void start() {
-        Aroki.log("Starting web server");
+        Aroki.Logger.info("Starting web server");
 
         port(26980);
 

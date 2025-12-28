@@ -321,11 +321,11 @@ public class ForumManager extends ListenerAdapter {
     }
 
     public static void scheduleReminderCheck() {
-        Aroki.log("Starting automatic reminder timed task...");
+        Aroki.Logger.info("Starting automatic reminder timed task...");
         Timer timer = new Timer(true);
         timer.scheduleAtFixedRate(new TimerTask() {
             static {
-                Aroki.log("Initialized forum auto reminder timed task, scheduled to run every " + INTERVAL_MINUTES + " minutes");
+                Aroki.Logger.info("Initialized forum auto reminder timed task, scheduled to run every " + INTERVAL_MINUTES + " minutes");
             }
 
             @Override

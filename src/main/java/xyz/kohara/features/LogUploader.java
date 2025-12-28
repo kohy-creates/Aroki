@@ -6,6 +6,8 @@ package xyz.kohara.features;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -19,6 +21,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
+import xyz.kohara.Aroki;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -29,6 +32,8 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 public class LogUploader extends ListenerAdapter {
+
+    private static final List<String> STORED_IDS = new ArrayList<>();
 
     private static final List<String> DISCONTINUED_VERSIONS = List.of(
             "1.20.4",
@@ -52,43 +57,67 @@ public class LogUploader extends ListenerAdapter {
         }
     }
 
+    private static void deleteLastUploadMessage(MessageChannelUnion channel) {
+        String id = STORED_IDS.getFirst();
+        STORED_IDS.remove(id);
+
+        channel.deleteMessageById(id).queue();
+    }
+
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
         if (event.getAuthor().isBot()) return;
 
+        MessageChannelUnion channel = event.getChannel();
+
         Map<File, String> fileMap = new HashMap<>();
         AtomicInteger iter = new AtomicInteger();
-        event.getMessage().getAttachments().stream()
-                .filter(attachment -> attachment.getFileName().matches(".*\\.(log|txt|gz)$"))
-                .forEach(attachment -> {
-                    String extension = attachment.getFileExtension();
-                    assert extension != null;
-                    extension = (extension.equals("gz")) ? "log" : extension;
-                    File tempFile = new File(LOGS_FOLDER, "temp-" + Math.random() * 1_000_001 + "." + extension);
-                    fileMap.put(tempFile, attachment.getFileName());
-                    attachment.getProxy().download().thenAccept(inputStream -> {
-                        event.getChannel().sendTyping().queue();
-                        try {
-                            if (Objects.equals(attachment.getFileExtension(), "gz")) {
-                                saveInputStreamToFile(inputStream, new File(tempFile + ".gz"));
-                                decompressGzipFile(tempFile + ".gz", tempFile.toString());
-                            } else {
-                                saveInputStreamToFile(inputStream, tempFile);
-                            }
-                            iter.addAndGet(1);
-                            if (iter.get() == event.getMessage().getAttachments().size()) {
-                                CompletableFuture.runAsync(() -> {
-                                    uploadAndSendLinks(fileMap, event);
-                                });
-                            }
 
-                        } catch (IOException e) {
-                            event.getChannel().sendMessage("❌ Error saving file `" + attachment.getFileName() + "`").queue();
-                            tempFile.delete();
-                            e.printStackTrace();
-                        }
-                    });
-                });
+        List<?> validAttachments = event.getMessage().getAttachments().stream()
+                .filter(attachment -> attachment.getFileName().matches(".*\\.(log|txt|gz)$"))
+                .toList();
+
+        if (!validAttachments.isEmpty()) {
+            channel.sendMessage("*Uploading to [mclo.gs](https://mclo.gs)...*").queue(msg -> {
+                STORED_IDS.add(msg.getId());
+            });
+        }
+
+        validAttachments.forEach(att -> {
+            var attachment = (net.dv8tion.jda.api.entities.Message.Attachment) att;
+            String extension = attachment.getFileExtension();
+            extension = extension.equals("gz") ? "info" : extension;
+
+            File tempFile = new File(LOGS_FOLDER, "temp-" + UUID.randomUUID() + "." + extension);
+            fileMap.put(tempFile, attachment.getFileName());
+
+            attachment.getProxy().download().thenAccept(inputStream -> {
+                try {
+                    if (attachment.getFileExtension().equals("gz")) {
+                        File gz = new File(tempFile + ".gz");
+                        saveInputStreamToFile(inputStream, gz);
+                        decompressGzipFile(gz.getPath(), tempFile.getPath());
+                    } else {
+                        saveInputStreamToFile(inputStream, tempFile);
+                    }
+
+                    if (Files.size(tempFile.toPath()) > 10 * 1024 * 1024 /* 10 megabytes size limit */) {
+                        tempFile.delete();
+                        channel.sendMessage(":x: `" + attachment.getFileName() + "` is too large to upload to mclo.gs automatically").queue();
+                        deleteLastUploadMessage(channel);
+                        return;
+                    }
+
+                    if (iter.incrementAndGet() == validAttachments.size()) {
+                        CompletableFuture.runAsync(() -> uploadAndSendLinks(fileMap, event));
+                    }
+                } catch (Exception e) {
+                    tempFile.delete();
+                    channel.sendMessage(":x: Error saving file `" + attachment.getFileName() + "`").queue();
+                    deleteLastUploadMessage(channel);
+                }
+            });
+        });
     }
 
     private void saveInputStreamToFile(InputStream inputStream, File file) throws IOException {
@@ -112,6 +141,7 @@ public class LogUploader extends ListenerAdapter {
                 tempFile.delete();
             } catch (IOException e) {
                 event.getChannel().sendMessage("❌ Error uploading file `" + originalName + "`").queue();
+                deleteLastUploadMessage(event.getChannel());
                 e.printStackTrace();
             }
         }
@@ -127,7 +157,7 @@ public class LogUploader extends ListenerAdapter {
                 String url = data.getFirst();
                 buttons.add(Button.link(url, key).withEmoji(Emoji.fromFormatted("<:mclogs:1359506468344299530>")));
                 /*
-                    If it isn't a crash report or a log, size of the list will be 2 (look at 'uploadToMcLogs')
+                    If it isn't a crash report or a info, size of the list will be 2 (look at 'uploadToMcLogs')
                     We don't add the 2nd button with quick info if it's a random ass txt file.
                 */
                 if (data.size() > 2) {
@@ -150,64 +180,72 @@ public class LogUploader extends ListenerAdapter {
                 }
                 builder.addActionRow(buttons);
             }
-            event.getChannel().sendMessage(builder.build()).queue();
+            deleteLastUploadMessage(event.getChannel());
+            event.getMessage().reply(builder.build()).mentionRepliedUser(false).queue();
         }
     }
 
     private List<String> uploadToMclogs(File file) throws IOException {
-        String logContent = Files.readString(file.toPath()).trim().replace("§", "");
+        StringBuilder sb = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append('\n');
+                if (sb.length() > 10_000_000) {
+                    throw new IOException("Log too large");
+                }
+            }
+        }
+
         try (CloseableHttpClient client = HttpClients.createDefault()) {
             HttpPost post = new HttpPost("https://api.mclo.gs/1/log");
-            post.setEntity(MultipartEntityBuilder.create().addTextBody("content", logContent, ContentType.APPLICATION_FORM_URLENCODED).build());
+
+            post.setEntity(new org.apache.hc.client5.http.entity.UrlEncodedFormEntity(
+                    List.of(new org.apache.hc.core5.http.message.BasicNameValuePair(
+                            "content", sb.toString()
+                    )),
+                    java.nio.charset.StandardCharsets.UTF_8
+            ));
+
             try (CloseableHttpResponse response = client.execute(post)) {
-                HttpEntity entity = response.getEntity();
-                if (entity != null) {
-                    String result = new String(entity.getContent().readAllBytes());
-                    JsonNode jsonNode = new ObjectMapper().readTree(result);
-                    String url = jsonNode.has("url") ? jsonNode.get("url").asText() : "Error uploading file";
-                    String id = jsonNode.has("id") ? jsonNode.get("id").asText() : "Error uploading file";
-                    List<String> resultList = new ArrayList<>();
-                    resultList.add(url);
-                    resultList.addAll(getLogTitle(id));
-                    /*
-                        The result is either a 2 or 4 element list
-                        4 if the upload is a log/crash report
-                        2 if anything else
+                String result = new String(response.getEntity().getContent().readAllBytes());
+                JsonNode jsonNode = new ObjectMapper().readTree(result);
 
-                         0 = url
-                         1 - 3 = name, type, version
-
-                         If it isn't a log/crash report, the 2nd element (id 1) will be null
-                    */
-                    return resultList;
+                if (!jsonNode.path("success").asBoolean(false)) {
+                    throw new IOException(jsonNode.path("error").asText("Upload failed"));
                 }
+
+                String url = jsonNode.get("url").asText();
+                String id = jsonNode.get("id").asText();
+
+                List<String> resultList = new ArrayList<>();
+                resultList.add(url);
+                resultList.addAll(getLogTitle(id));
+                return resultList;
             }
         }
-        throw new RuntimeException();
     }
 
-    private List<String> getLogTitle(String string) throws IOException {
+
+    private List<String> getLogTitle(String id) throws IOException {
         try (CloseableHttpClient client = HttpClients.createDefault()) {
-            HttpGet get = new HttpGet("https://api.mclo.gs/1/insights/" + string);
+            HttpGet get = new HttpGet("https://api.mclo.gs/1/insights/" + id);
             try (CloseableHttpResponse response = client.execute(get)) {
-                HttpEntity entity = response.getEntity();
-                if (entity != null) {
-                    String result = new String(entity.getContent().readAllBytes());
-                    JsonNode jsonNode = new ObjectMapper().readTree(result);
-                    String name, type, version;
-                    String UNKNOWN_NAME = "Unknown", UNKNOWN_TYPE = "Log", UNKNOWN_VERSION = "Unknown version";
-                    name = !jsonNodeField(jsonNode, "name").equals("null") ? jsonNodeField(jsonNode, "name") : UNKNOWN_NAME;
-                    type = !jsonNodeField(jsonNode, "type").equals("Unknown Log") ? jsonNodeField(jsonNode, "type") : UNKNOWN_TYPE;
-                    version = !jsonNodeField(jsonNode, "version").equals("null") ? jsonNodeField(jsonNode, "version") : UNKNOWN_VERSION;
-                    if (!(type.equals(UNKNOWN_TYPE) && name.equals(UNKNOWN_NAME) && version.equals(UNKNOWN_VERSION)))
-                        return List.of(
-                                name, type, version
-                        );
-                    else return List.of("null");
+                String result = new String(response.getEntity().getContent().readAllBytes());
+                JsonNode jsonNode = new ObjectMapper().readTree(result);
+
+                if (!jsonNode.path("success").asBoolean(false)) {
+                    return List.of("null");
                 }
+
+                String name = jsonNode.path("name").asText("Unknown");
+                String type = jsonNode.path("type").asText("Log");
+                String version = jsonNode.path("version").asText("Unknown");
+
+                return List.of(name, type, version);
             }
         }
-        throw new RuntimeException();
     }
 
     private String jsonNodeField(JsonNode jsonNode, String name) {

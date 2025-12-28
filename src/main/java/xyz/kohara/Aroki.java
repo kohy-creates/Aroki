@@ -14,6 +14,7 @@ import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.reflections.Reflections;
+import org.slf4j.LoggerFactory;
 import xyz.kohara.features.commands.SlashCommands;
 import xyz.kohara.features.support.ForumManager;
 import xyz.kohara.status.BotActivity;
@@ -24,8 +25,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.*;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 
 public class Aroki {
@@ -54,19 +53,21 @@ public class Aroki {
         // Add all listeners dynamically through a reflection
         getAllListeners().forEach(listenerAdapter -> {
             BOT.addEventListener(listenerAdapter);
-            log("Added listener " + listenerAdapter.toString().split("@")[0] + " to bot " + BOT_NAME);
+            Aroki.Logger.info("Registered listener for" + listenerAdapter.toString().split("@")[0]);
         });
 
         Aroki.BASEMENT.updateCommands().addCommands(SlashCommands.COMMANDS).queue();
         ForumManager.scheduleReminderCheck();
         BotActivity.schedule();
 
-        log(BOT_NAME + " has successfully finished startup");
+        Aroki.Logger.success(BOT_NAME + " has successfully finished startup");
 
         WebServer.start();
     }
 
     private static List<ListenerAdapter> getAllListeners() {
+        Aroki.Logger.info("Automatically adding listeners...");
+
         List<ListenerAdapter> listeners = new ArrayList<>();
 
         Reflections reflections = new Reflections("xyz.kohara.features");
@@ -76,7 +77,7 @@ public class Aroki {
             try {
                 listeners.add(clazz.getDeclaredConstructor().newInstance());
             } catch (Exception e) {
-                log("Failed to load listener: " + clazz.getName(), Level.SEVERE);
+                Aroki.Logger.error("Failed to load listener: " + clazz.getName());
                 throw new RuntimeException(e);
             }
         }
@@ -138,12 +139,29 @@ public class Aroki {
         return result.toString();
     }
 
-    public static void log(String text) {
-        log(text, Level.INFO);
-    }
+    public static class Logger {
 
-    public static void log(String text, Level level) {
-        Logger.getLogger(Aroki.class.getName()).log(level, text);
+        private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(Aroki.Logger.class);
+
+        private static final String GREEN = "\u001B[32m";
+        private static final String RESET = "\u001B[0m";
+
+        public static void info(String text) {
+            LOGGER.info(text);
+        }
+
+        public static void success(String text) {
+			LOGGER.info(GREEN + "{}" + RESET, text);
+        }
+
+        public static void error(String text) {
+            LOGGER.error(text);
+        }
+
+        public static void warn(String text) {
+            LOGGER.warn(text);
+        }
+
     }
 
     public static String getPlayerFromUUID(String uuid) throws IOException, URISyntaxException {
