@@ -17,7 +17,7 @@ import java.util.logging.Level;
 public class TrackScheduler extends AudioEventAdapter {
 
     private final AudioPlayer PLAYER;
-    private static final BlockingQueue<AudioTrack> QUEUE = new LinkedBlockingQueue<>();  // Using a static QUEUE
+    private static final BlockingQueue<AudioTrack> QUEUE = new LinkedBlockingQueue<>();
 
     private static final LinkedList<AudioTrack> HISTORY = new LinkedList<>();
     private static final int HISTORY_LIMIT = 10;

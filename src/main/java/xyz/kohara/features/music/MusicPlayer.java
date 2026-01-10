@@ -10,8 +10,13 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.GuildVoiceState;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.AudioChannel;
+import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.managers.AudioManager;
@@ -19,13 +24,17 @@ import xyz.kohara.Aroki;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.*;
 
 public class MusicPlayer extends ListenerAdapter {
 
     private static final AudioPlayerManager PLAYER_MANAGER = new DefaultAudioPlayerManager();
 
+    private static final ScheduledExecutorService scheduler =
+            Executors.newSingleThreadScheduledExecutor();
+    private static final Map<Guild, ScheduledFuture<?>> leaveTasks = new ConcurrentHashMap<>();
 
     static {
         PLAYER_MANAGER.registerSourceManager(new YoutubeAudioSourceManager());
@@ -129,7 +138,6 @@ public class MusicPlayer extends ListenerAdapter {
                     event.reply("You're not in a voice channel").setEphemeral(true).queue();
                     return;
                 }
-                ;
                 event.reply("Joining " + Objects.requireNonNull(Objects.requireNonNull(member.getVoiceState()).getChannel()).asVoiceChannel().getAsMention()).setEphemeral(true).queue();
             }
             case "volume" -> {
@@ -198,7 +206,7 @@ public class MusicPlayer extends ListenerAdapter {
 
                 EmbedBuilder embed = new EmbedBuilder()
                         .setTitle("Now playing '" + trackInfo.title + "'")
-                        .setDescription(durationBar((double) trackPosition / trackDuration))
+                        .setDescription(durationBar((double) trackPosition / (double) trackDuration))
                         .setThumbnail(imageUrl)
                         .addField("Artist", trackInfo.author, true)
                         .addField("Duration", formatDuration(trackDuration), true)
@@ -293,7 +301,7 @@ public class MusicPlayer extends ListenerAdapter {
                     event.reply("The queue is empty").setEphemeral(true).queue();
                     return;
                 }
-                PLAYER.playTrack(PLAYER.getPlayingTrack());
+                PLAYER.playTrack(PLAYER.getPlayingTrack().makeClone());
                 event.reply("Replaying").queue();
             }
             case "history" -> {
@@ -349,4 +357,60 @@ public class MusicPlayer extends ListenerAdapter {
         }
         return "https://img.youtube.com/vi/" + videoId + "/sddefault.jpg";
     }
+
+    @Override
+    public void onGuildVoiceUpdate(GuildVoiceUpdateEvent event) {
+        VoiceChannel channel;
+
+        AudioChannelUnion joinedChannel = event.getChannelJoined();
+        AudioChannelUnion leftChannel = event.getChannelLeft();
+
+        Guild guild = event.getGuild();
+
+        // On join
+        if (joinedChannel != null) {
+            channel = joinedChannel.asVoiceChannel();
+
+            Member aroki = guild.getSelfMember();
+            List<Member> connectedMembers = channel.getMembers();
+            if (connectedMembers.contains(aroki)) {
+                if (connectedMembers.size() == 2 && !isPlaying()) {
+                    PLAYER.setPaused(false);
+
+                    ScheduledFuture<?> task = leaveTasks.remove(guild);
+                    if (task != null) {
+                        task.cancel(false);
+                    }
+                }
+            }
+        }
+        // On leave
+        if (leftChannel != null) {
+            channel = leftChannel.asVoiceChannel();
+            Member aroki = guild.getSelfMember();
+            List<Member> connectedMembers = channel.getMembers();
+            if (connectedMembers.contains(aroki)) {
+                if (connectedMembers.size() == 1 && isPlaying()) {
+                    PLAYER.setPaused(true);
+
+                    leaveTasks.computeIfAbsent(guild, id ->
+                            scheduler.schedule(() -> {
+                                GuildVoiceState currentState = guild.getSelfMember().getVoiceState();
+                                if (currentState != null && currentState.inAudioChannel()) {
+                                    AudioChannel currentChannel = currentState.getChannel();
+                                    boolean stillAlone = currentChannel.getMembers().stream()
+                                            .allMatch(m -> m.getUser().isBot());
+
+                                    if (stillAlone) {
+                                        guild.getAudioManager().closeAudioConnection();
+                                    }
+                                }
+                                leaveTasks.remove(id);
+                            }, 5, TimeUnit.MINUTES)
+                    );
+                }
+            }
+        }
+    }
+
 }
