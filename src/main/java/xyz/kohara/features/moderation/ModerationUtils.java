@@ -12,7 +12,6 @@ public class ModerationUtils {
         return !Aroki.isStaff(member) || !event.getName().equals(command);
     }
 
-
 //    @Nullable
 //    public static Role createMutedRole(@NotNull Guild guild) {
 //        Role mutedrole;

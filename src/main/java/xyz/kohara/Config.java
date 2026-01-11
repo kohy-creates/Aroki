@@ -33,7 +33,9 @@ public class Config {
         MORTALS_ROLE("0000"),
         BOT_ROLE("0000"),
         INVITE("https://example.com/"),
-        ADJ_INFO_CHANNEL("0000");
+        ADJ_INFO_CHANNEL("0000"),
+        UNEPIC_ROLE_ID("1205080790006759424"),
+        FINAL_UNEPIC_ROLE_ID("1383909149301014648");
 
         private final String defaultValue;
 
@@ -50,7 +52,6 @@ public class Config {
         }
 
     }
-
 
     static {
         tryCreateConfigFile();

@@ -5,7 +5,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.dv8tion.jda.api.entities.Member;
 
-import javax.swing.*;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -155,6 +154,48 @@ public class ModerationSaveData {
         }
     }
 
+    public static boolean isMemberUnepic(Member member) {
+        return getUnepicMembers(false).contains(member.getId())
+                && getUnepicMembers(true).contains(member.getId());
+    }
+
+    public static boolean isMemberUnepic(Member member, boolean isFinal) {
+        return getUnepicMembers(isFinal).contains(member.getId());
+    }
+
+    public static void addUnepicMember(Member member, boolean isFinal) {
+        List<String> list = new ArrayList<>(getUnepicMembers(isFinal));
+        list.add(member.getId());
+
+        saveUnepicMembers(list, isFinal);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<String> getUnepicMembers(boolean isFinal) {
+        File saveFile = new File(isFinal ? SaveLocation.FINAL_UNEPICS.path : SaveLocation.UNEPICS.path);
+
+        if (!saveFile.exists() || saveFile.length() == 0) {
+            return new ArrayList<>();
+        }
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(saveFile))) {
+            return (List<String>) ois.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            throw new RuntimeException("Failed to load unepic members", e);
+        }
+    }
+
+    public static void saveUnepicMembers(List<String> members, boolean isFinal) {
+        try {
+            File saveFile = new File((isFinal) ? SaveLocation.FINAL_UNEPICS.path : SaveLocation.UNEPICS.path);
+            FileOutputStream fos = new FileOutputStream(saveFile);
+            ObjectOutputStream oos = new ObjectOutputStream(fos);
+            oos.writeObject(members);
+            oos.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     /// Records
     // Single warning
@@ -170,30 +211,30 @@ public class ModerationSaveData {
     }
 
     public enum ActionType {
-        KICK("kick"),
-        BAN("ban"),
-        TIMEOUT("timeout"),
-        WARN("warn");
+        KICK(),
+        BAN(),
+        TIMEOUT(),
+        WARN(),
+        UNEPIC();
 
-        private final String type;
-
-        ActionType(String type) {
-            this.type = type;
+        ActionType() {
         }
 
-        public String get() {
-            return this.type;
+        public String getDescriptionId() {
+            return this.name().toLowerCase();
         }
     }
 
     // Save locations as enums because I can do that
     private enum SaveLocation {
-        WARNINGS("warnings");
+        WARNINGS(true),
+        UNEPICS(false),
+        FINAL_UNEPICS(false);
 
         private final String path;
 
-        SaveLocation(String path) {
-            this.path = SAVE_LOCATION + path + ".json";
+        SaveLocation(boolean json) {
+            this.path = SAVE_LOCATION + this.name().toLowerCase() + ((json) ? ".json" : ".txt");
             createIfMissing(this.path);
         }
 

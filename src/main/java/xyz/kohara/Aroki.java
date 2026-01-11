@@ -26,7 +26,6 @@ import java.io.InputStreamReader;
 import java.net.*;
 import java.util.*;
 
-
 public class Aroki {
 
     private static final String token = Config.get(Config.Option.TOKEN);
@@ -35,7 +34,7 @@ public class Aroki {
     private static JDA BOT;
     private static final String BOT_NAME = Config.get(Config.Option.BOT_NAME);
     private static Guild BASEMENT;
-    private static Role STAFF_ROLE, DEV_ROLE;
+    public static Role STAFF_ROLE, DEV_ROLE, UNEPIC_ROLE, FINAL_UNEPIC_ROLE;
 
     public static void main(String[] args) throws Exception {
 
@@ -43,17 +42,19 @@ public class Aroki {
                 .createDefault(token)
                 .enableIntents(Arrays.asList(intents))
                 .build();
-
         BOT.awaitReady();
 
         BASEMENT = BOT.getGuildById(Config.get(Config.Option.SERVER_ID));
+
         STAFF_ROLE = BOT.getRoleById(Config.get(Config.Option.STAFF_ROLE_ID));
         DEV_ROLE = BOT.getRoleById(Config.get(Config.Option.DEV_ROLE_ID));
+        UNEPIC_ROLE = BOT.getRoleById(Config.get(Config.Option.UNEPIC_ROLE_ID));
+        FINAL_UNEPIC_ROLE = BOT.getRoleById(Config.get(Config.Option.FINAL_UNEPIC_ROLE_ID));
 
         // Add all listeners dynamically through a reflection
         getAllListeners().forEach(listenerAdapter -> {
             BOT.addEventListener(listenerAdapter);
-            Aroki.Logger.info("Registered listener for" + listenerAdapter.toString().split("@")[0]);
+            Aroki.Logger.info("Registered listener for " + listenerAdapter.toString().split("@")[0]);
         });
 
         Aroki.BASEMENT.updateCommands().addCommands(SlashCommands.COMMANDS).queue();
@@ -151,7 +152,7 @@ public class Aroki {
         }
 
         public static void success(String text) {
-			LOGGER.info(GREEN + "{}" + RESET, text);
+            LOGGER.info(GREEN + "{}" + RESET, text);
         }
 
         public static void error(String text) {

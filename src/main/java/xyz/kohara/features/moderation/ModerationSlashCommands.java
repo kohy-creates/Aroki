@@ -46,5 +46,11 @@ public class ModerationSlashCommands {
                         .addOption(OptionType.USER, "member", "Target member", true)
                         .addOptions(SlashCommands.SEND_PUBLICLY)
         );
+        MODERATION_COMMANDS.add(
+                slashCommand("unepic", "!warn :scared_emoji:")
+                        .addOption(OptionType.USER, "member", "Target member", true)
+                        .addOption(OptionType.STRING, "reason", "Reason, will be blank if empty", false)
+                        .addOption(OptionType.BOOLEAN, "final", "Is final?", false)
+        );
     }
 }
