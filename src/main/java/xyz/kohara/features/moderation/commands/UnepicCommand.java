@@ -37,7 +37,7 @@ public class UnepicCommand extends ListenerAdapter {
         );
         Guild guild = event.getGuild();
 
-        List<Role> roles = new ArrayList<>();
+        List<Role> roles = new ArrayList<>(member.getRoles());
         roles.add(Aroki.UNEPIC_ROLE);
         if (isFinal) {
             roles.add(Aroki.FINAL_UNEPIC_ROLE);
