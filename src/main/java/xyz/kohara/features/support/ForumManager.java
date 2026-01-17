@@ -33,8 +33,9 @@ public class ForumManager extends ListenerAdapter {
     private static final ForumChannel SUPPORT_CHANNEL = Aroki.getServer().getForumChannelById(Config.get(Config.Option.SUPPORT_CHANNEL));
     private static final int INTERVAL_MINUTES = 15;
     private static final int INTERVAL = INTERVAL_MINUTES * 60 * 1000;
+    private static String CLOSE_COMMAND;
 
-    private static final Map<String, String> replyCache = new HashMap<>();
+    private static final Map<String, String> REPLIES = new HashMap<>();
 
     static {
         File dir = new File("data/forum/");
@@ -43,17 +44,13 @@ public class ForumManager extends ListenerAdapter {
             try {
                 for (File child : directoryListing) {
                     String name = child.getName().split("\\.")[0];
-                    replyCache.put(name, Files.readString(child.toPath()).trim());
+                    REPLIES.put(name, Files.readString(child.toPath()).trim());
                 }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
-    }
 
-    private static String CLOSE_COMMAND;
-
-    static {
         Aroki.getServer().retrieveCommands().queue(
                 commands -> {
                     for (Command command : commands) {
@@ -71,7 +68,7 @@ public class ForumManager extends ListenerAdapter {
     }
 
     private static String REMINDER_MESSAGE(String member, boolean addReminder) {
-        String text = replyCache.get("reminder_message");
+        String text = REPLIES.get("reminder_message");
         text = text.replace("{MEMBER}", "<@" + member + ">");
         text = text.replace("{CLOSE}", CLOSE_COMMAND);
 
@@ -81,11 +78,15 @@ public class ForumManager extends ListenerAdapter {
     }
 
     private static String DUPLICATE_MESSAGE(boolean DM) {
-        return replyCache.get((DM) ? "duplicate_dm" : "duplicate");
+        return REPLIES.get((DM) ? "duplicate_dm" : "duplicate");
     }
 
     private static String INVALID_MESSAGE(boolean DM) {
-        return replyCache.get((DM) ? "invalid_dm" : "invalid");
+        return REPLIES.get((DM) ? "invalid_dm" : "invalid");
+    }
+
+    private static String STELLARITY_MESSAGE() {
+        return REPLIES.get("stellarity");
     }
 
     private static EmbedBuilder SUPPORT_EMBED(Member member) {
@@ -94,7 +95,7 @@ public class ForumManager extends ListenerAdapter {
         iconUrl = (Aroki.getServer().getIcon() != null) ? Aroki.getServer().getIcon().getUrl() : null;
         embed.setAuthor(Aroki.getServer().getName(), null, iconUrl);
 
-        String content = replyCache.get("embed");
+        String content = REPLIES.get("embed");
         content = content.replace("{CLOSE}", CLOSE_COMMAND);
         content = content.replace("{MEMBER}", member.getAsMention());
 
@@ -116,7 +117,10 @@ public class ForumManager extends ListenerAdapter {
     private enum ResolutionType {
         DUPLICATE,
         INVALID,
-        RESOLVED;
+        RESOLVED,
+        STELLARITY; /* this looks so funny
+                        idk if i even need a separate resolution type for this
+                        maybe some day i'll find it useful */
 
         ResolutionType() {
         }
@@ -129,7 +133,8 @@ public class ForumManager extends ListenerAdapter {
                 .toList());
         switch (reason) {
             case ResolutionType.DUPLICATE -> currentTagIds.add(ForumTags.DUPLICATE.getId());
-            case ResolutionType.INVALID -> currentTagIds.add(ForumTags.INVALID.getId());
+            case ResolutionType.STELLARITY,
+                 ResolutionType.INVALID -> currentTagIds.add(ForumTags.INVALID.getId());
             case ResolutionType.RESOLVED -> currentTagIds.add(ForumTags.RESOLVED.getId());
         }
         currentTagIds.remove(ForumTags.OPEN.getId());
@@ -173,7 +178,7 @@ public class ForumManager extends ListenerAdapter {
                         case "✅" -> {
                             if (op.equals(Objects.requireNonNull(event.getMember()).getId()) || hasThreadManagementPerms(event.getMember())) {
                                 event.getMessage().addReaction(Emoji.fromFormatted("✅")).queue();
-                                event.getChannel().sendMessage("✅").queue();
+//                                event.getChannel().sendMessage("✅").queue();
                                 closePost(channel, ResolutionType.RESOLVED);
                             }
                         }
@@ -188,6 +193,16 @@ public class ForumManager extends ListenerAdapter {
                         }
                     }
                 } else if (!ForumData.entryExists(id)) {
+                    List<Long> currentTagIds = new ArrayList<>(channel.getAppliedTags()
+                            .stream()
+                            .map(ForumTag::getIdLong)
+                            .toList());
+                    if (currentTagIds.contains(ForumTags.STELLARITY.getId())) {
+                        channel.sendMessage(STELLARITY_MESSAGE()).queue();
+                        closePost(channel, ResolutionType.STELLARITY);
+                        return;
+                    }
+
                     ForumData.addEntry(id, Objects.requireNonNull(event.getMember()).getId(), System.currentTimeMillis());
                     channel.sendMessage("").addEmbeds(SUPPORT_EMBED(event.getMember()).build()).queue(
                             message -> message.pin().queue(
@@ -199,10 +214,6 @@ public class ForumManager extends ListenerAdapter {
                                     })
                             )
                     );
-                    List<Long> currentTagIds = new ArrayList<>(channel.getAppliedTags()
-                            .stream()
-                            .map(ForumTag::getIdLong)
-                            .toList());
                     currentTagIds.add(ForumTags.OPEN.getId());
                     ArrayList<ForumTagSnowflake> snowflakes = new ArrayList<>();
                     for (Long tagid : currentTagIds) {

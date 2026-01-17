@@ -3,26 +3,20 @@ package xyz.kohara.features.support;
 import xyz.kohara.Config;
 
 public enum ForumTags {
-    OPEN("open_tag_id"),
-    RESOLVED("resolved_tag_id"),
-    INVALID("invalid_tag_id"),
-    TO_DO("to_do_tag_id"),
-    DUPLICATE("duplicate_tag_id");
+    OPEN(Config.Option.OPEN_TAG_ID),
+    RESOLVED(Config.Option.RESOLVED_TAG_ID),
+    INVALID(Config.Option.INVALID_TAG_ID),
+    TO_DO(Config.Option.TO_DO_TAG_ID),
+    DUPLICATE(Config.Option.DUPLICATE_TAG_ID),
+    STELLARITY(Config.Option.STELLARITY_SUPPORT_TAG_ID);
 
-    private final long id;
-    ForumTags(String id) {
-        this.id = parseConfig(id);
+    private final Config.Option option;
+
+    ForumTags(Config.Option option) {
+        this.option = option;
     }
 
     public long getId() {
-        return this.id;
-    }
-
-    private static Long parseConfig(String key) {
-        String value = Config.get(Config.Option.valueOf(key.toUpperCase()));
-        if (value == null) {
-            throw new RuntimeException("Config key '" + key + "' is missing or null!");
-        }
-        return Long.parseLong(value);
+        return Long.parseLong(Config.get(this.option));
     }
 }

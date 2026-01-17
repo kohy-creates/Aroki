@@ -19,28 +19,33 @@ public class Config {
 
     public enum Option {
         TOKEN("CHANGE_ME"),
-        SERVER_ID("0000"),
-        STAFF_ROLE_ID("0000"),
-        DEV_ROLE_ID("0000"),
+        SERVER_ID(0),
+        STAFF_ROLE_ID(0),
+        DEV_ROLE_ID(0),
         BOT_NAME("Aroki"),
-        SUPPORT_CHANNEL("0000"),
-        INVALID_TAG_ID("0000"),
-        OPEN_TAG_ID("0000"),
-        RESOLVED_TAG_ID("0000"),
-        TO_DO_TAG_ID("0000"),
-        DUPLICATE_TAG_ID("0000"),
+        SUPPORT_CHANNEL(0),
+        INVALID_TAG_ID(0),
+        OPEN_TAG_ID(0),
+        RESOLVED_TAG_ID(0),
+        TO_DO_TAG_ID(0),
+        DUPLICATE_TAG_ID(0),
         TAG_PREFIX("!"),
-        MORTALS_ROLE("0000"),
-        BOT_ROLE("0000"),
+        MORTALS_ROLE(0),
+        BOT_ROLE(0),
         INVITE("https://example.com/"),
-        ADJ_INFO_CHANNEL("0000"),
-        UNEPIC_ROLE_ID("1205080790006759424"),
-        FINAL_UNEPIC_ROLE_ID("1383909149301014648");
+        ADJ_INFO_CHANNEL(0),
+        UNEPIC_ROLE_ID(1205080790006759424L),
+        FINAL_UNEPIC_ROLE_ID(1383909149301014648L),
+        STELLARITY_SUPPORT_TAG_ID(1185567778191712257L);
 
         private final String defaultValue;
 
         Option(String defaultValue) {
             this.defaultValue = defaultValue;
+        }
+
+        Option(long defaultValue) {
+            this.defaultValue = String.valueOf(defaultValue);
         }
 
         public String getDefaultValue() {
