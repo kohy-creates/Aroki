@@ -45,3 +45,4 @@ config.json
 forum_data.json
 /data/moderation/warnings.json
 /data/moderation/history/
+/data/moderation
