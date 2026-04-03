@@ -1,6 +1,5 @@
 package xyz.kohara.status;
 
-import com.google.gson.Gson;
 import net.dv8tion.jda.api.entities.Activity;
 import xyz.kohara.Aroki;
 import xyz.kohara.Config;
@@ -8,14 +7,13 @@ import xyz.kohara.Config;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 
 public class BotActivity {
 
-    private static final List<Activity> STATUS_LIST = new ArrayList<>();
+    private static final String LOCATION = "data/status.txt";
     private static final int INTERVAL;
-    private static final List<Activity> ACTIVITIES = new ArrayList<>();
+    private static final List<String> ACTIVITIES = new ArrayList<>();
 
     static {
         var intervals = Config.get(Config.Option.STATUS_CHANGE_INTERVAL).split(":");
@@ -25,32 +23,44 @@ public class BotActivity {
                     * 1000 /* all to milliseconds */;
 
         try {
-            File statusTXT = new File("data/status.txt");
+            File statusTXT = new File(LOCATION);
             if (statusTXT.exists()) {
-                var allStatuses = Files.readAllLines(statusTXT.toPath());
-                allStatuses.forEach(s -> {
-                    ACTIVITIES.add(Activity.customStatus(Aroki.Placeholders.parse(s)));
-                });
+				ACTIVITIES.addAll(Files.readAllLines(statusTXT.toPath()));
+            }
+            else {
+                Aroki.Logger.error("File not found: \"{}\"", LOCATION);
             }
         }
         catch (IOException e) {
-            Aroki.Logger.error("Something went wrong trying to read \"data/status.txt\"!");
+            Aroki.Logger.error("Something went wrong trying to read \"{}\"!", LOCATION);
             throw new RuntimeException(e);
         }
     }
 
     public static void schedule() {
         Timer timer = new Timer(true);
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                Activity randomActivity;
-                Activity current = Aroki.getBot().getPresence().getActivity();
-                do {
-                    randomActivity = STATUS_LIST.get(new Random().nextInt(STATUS_LIST.size()));
-                } while (randomActivity == current);
-                Aroki.getBot().getPresence().setActivity(randomActivity);
-            }
-        }, 0, INTERVAL);
+        timer.scheduleAtFixedRate(new ChangeStatusTask(), 0, INTERVAL);
+    }
+
+    private static class ChangeStatusTask extends TimerTask {
+
+        private final Random random = new Random();
+
+        @Override
+        public void run() {
+            Aroki.Logger.debug("Choosing new status...");
+            Activity randomActivity;
+            Activity current = Aroki.getBot().getPresence().getActivity();
+            do {
+                randomActivity = getRandomActivity();
+            } while (randomActivity == current);
+            Aroki.Logger.debug("New status: {}", randomActivity.getName());
+            Aroki.getBot().getPresence().setActivity(randomActivity);
+        }
+
+        private Activity getRandomActivity() {
+            var str = ACTIVITIES.get(random.nextInt(ACTIVITIES.size()));
+            return Activity.customStatus(Aroki.Placeholders.parse(str));
+        }
     }
 }

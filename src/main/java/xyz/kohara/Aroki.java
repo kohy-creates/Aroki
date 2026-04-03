@@ -1,7 +1,5 @@
 package xyz.kohara;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Guild;
@@ -13,8 +11,8 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import org.apache.commons.logging.Log;
 import org.reflections.Reflections;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import xyz.kohara.features.commands.SlashCommands;
 import xyz.kohara.features.support.ForumManager;
@@ -22,9 +20,6 @@ import xyz.kohara.status.BotActivity;
 import xyz.kohara.web.WebServer;
 
 import javax.annotation.Nullable;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.*;
 import java.util.*;
 import java.util.function.Supplier;
@@ -59,7 +54,7 @@ public class Aroki {
         // Add all listeners dynamically through a reflection
         getAllListeners().forEach(listenerAdapter -> {
             BOT.addEventListener(listenerAdapter);
-            Aroki.Logger.debug("Registered listener for " + listenerAdapter.toString().split("@")[0]);
+            Aroki.Logger.debug("Registered listener for {}", listenerAdapter.toString().split("@")[0]);
         });
 
         Aroki.BASEMENT.updateCommands().addCommands(SlashCommands.COMMANDS).queue();
@@ -83,7 +78,7 @@ public class Aroki {
             try {
                 listeners.add(clazz.getDeclaredConstructor().newInstance());
             } catch (Exception e) {
-                Aroki.Logger.error("Failed to load listener: " + clazz.getName());
+                Aroki.Logger.error("Failed to load listener: {}", clazz.getName());
                 throw new RuntimeException(e);
             }
         }
@@ -234,6 +229,10 @@ public class Aroki {
         public static String parse(String text) {
             Matcher m = PATTERN.matcher(text);
             Logger.debug("Parsing placeholders...");
+            if (!m.find()) {
+                Logger.debug("No placeholders found!");
+                return text;
+            }
 
             StringBuilder result = new StringBuilder();
 

@@ -285,14 +285,13 @@ public class ForumManager extends ListenerAdapter {
                                                     : "*No notes provided*")
                             )
                     );
-                    event.reply(
-                            INVALID_MESSAGE(false)
-                                    .replace(
-                                            "{NOTE}",
-                                            (note != null) ?
-                                                    "*" + note.getAsString() + "*"
-                                                    : "*No notes provided*")
-                    ).queue();
+                    String TEXT =  INVALID_MESSAGE(false)
+                            .replace(
+                                    "{NOTE}",
+                                    (note != null) ?
+                                            "*" + note.getAsString() + "*"
+                                            : "*No notes provided*");
+                    event.reply(TEXT).queue();
                     closePost(thread, ResolutionType.INVALID);
                 } else if (action.equals("duplicate") && staff) {
                     OptionMapping od = event.getOption("duplicate_of");
