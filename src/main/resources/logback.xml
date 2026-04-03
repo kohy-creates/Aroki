@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+    <property name="logLevel" value="${logLevel:-INFO}" />
+    <logger name="xyz.kohara" level="${logLevel}" />
+
+
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>[%d{HH:mm:ss}] [%highlight(%level)] %msg%n</pattern>
         </encoder>
     </appender>
 
-    <root level="info">
+    <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
 </configuration>

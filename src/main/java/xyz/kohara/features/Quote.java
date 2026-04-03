@@ -1,6 +1,5 @@
 package xyz.kohara.features;
 
-import kotlin.Pair;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
@@ -18,8 +17,8 @@ import java.util.regex.Pattern;
 
 public class Quote extends ListenerAdapter {
 
-    private final int MAX_LENGTH = 750;
-    private final boolean SHOULD_TRUNCATE = false;
+    private final int MAX_LENGTH = 300;
+    private final boolean SHOULD_TRUNCATE = true;
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {

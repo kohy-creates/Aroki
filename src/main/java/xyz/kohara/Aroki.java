@@ -14,17 +14,22 @@ import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.reflections.Reflections;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import xyz.kohara.features.commands.SlashCommands;
 import xyz.kohara.features.support.ForumManager;
 import xyz.kohara.status.BotActivity;
 import xyz.kohara.web.WebServer;
 
+import javax.annotation.Nullable;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.*;
 import java.util.*;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Aroki {
 
@@ -54,7 +59,7 @@ public class Aroki {
         // Add all listeners dynamically through a reflection
         getAllListeners().forEach(listenerAdapter -> {
             BOT.addEventListener(listenerAdapter);
-            Aroki.Logger.info("Registered listener for " + listenerAdapter.toString().split("@")[0]);
+            Aroki.Logger.debug("Registered listener for " + listenerAdapter.toString().split("@")[0]);
         });
 
         Aroki.BASEMENT.updateCommands().addCommands(SlashCommands.COMMANDS).queue();
@@ -67,7 +72,7 @@ public class Aroki {
     }
 
     private static List<ListenerAdapter> getAllListeners() {
-        Aroki.Logger.info("Automatically adding listeners...");
+        Aroki.Logger.info("Adding listeners...");
 
         List<ListenerAdapter> listeners = new ArrayList<>();
 
@@ -108,7 +113,7 @@ public class Aroki {
                     .setActionRow(
                             Button.of(
                                     ButtonStyle.PRIMARY,
-                                    "sent_from", "Sent from " + Aroki.getServer().getName(), Emoji.fromFormatted("<:paper_plane:1358007565614710785>")
+                                    "sent_from", Placeholders.parse("Sent from {GUILD}"), Emoji.fromFormatted("<:paper_plane:1358007565614710785>")
                             ).asDisabled()
                     )
                     .queue();
@@ -144,6 +149,10 @@ public class Aroki {
 
         private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(Aroki.Logger.class);
 
+        static {
+            info("Debug level logging is currently " + (LOGGER.isDebugEnabled() ? "ENABLED" : "DISABLED"));
+        }
+
         private static final String GREEN = "\u001B[32m";
         private static final String RESET = "\u001B[0m";
 
@@ -159,42 +168,97 @@ public class Aroki {
             LOGGER.error(text);
         }
 
+        public static void error(String text, Object... args) {
+            LOGGER.error(text, args);
+        }
+
         public static void warn(String text) {
             LOGGER.warn(text);
         }
 
-    }
-
-    public static String getPlayerFromUUID(String uuid) throws IOException, URISyntaxException {
-        return getPlayerFromUUID(UUID.fromString(uuid));
-    }
-
-    public static String getPlayerFromUUID(UUID uuid) throws IOException, URISyntaxException {
-        String apiUrl = "https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.toString().replace("-", "");
-        URL url = new URI(apiUrl).toURL();
-        HttpURLConnection con = (HttpURLConnection) url.openConnection();
-        con.setRequestMethod("GET");
-        con.setConnectTimeout(5000);
-        con.setReadTimeout(5000);
-
-        int status = con.getResponseCode();
-
-        if (status != 200) {
-            return null;
-        }
-        BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
-        StringBuilder response = new StringBuilder();
-        String line;
-
-        while ((line = in.readLine()) != null) {
-            response.append(line);
+        public static void warn(String text, Object... args) {
+            LOGGER.warn(text, args);
         }
 
-        in.close();
-        con.disconnect();
+        public static void debug(String text) {
+            LOGGER.debug(text);
+        }
 
-        JsonObject json = JsonParser.parseString(response.toString()).getAsJsonObject();
-        return json.get("name").getAsString();
+        public static void debug(String text, Object... args) {
+            LOGGER.debug(text, args);
+        }
     }
 
+    public enum Placeholders {
+        MEMBER_COUNT(() -> String.valueOf(getServer().getMemberCount())),
+        GUILD(() -> getServer().getName()),
+        BOT_NAME(() -> getBot().getSelfUser().getAsMention()),
+        MEMBER(() -> {
+			if (getMember() == null) {
+                Logger.error("Error parsing placeholder MEMBER, getMember() is null");
+                return "ERROR";
+            }
+			return getMember().getAsMention();
+		}, true),
+        PING(() -> String.valueOf(getBot().getGatewayPing()));
+
+        private final Supplier<String> replaceWith;
+        private final boolean requiresMemberArgument;
+
+        private static @Nullable Member targetMember = null;
+        private static Member getMember() {
+            return targetMember;
+        }
+
+        public Placeholders setMember(Member m) {
+            targetMember = m;
+            return this;
+        }
+
+        Placeholders(Supplier<String> replaceWith, boolean requiresMemberArgument) {
+            this.replaceWith = replaceWith;
+            this.requiresMemberArgument = requiresMemberArgument;
+        }
+
+        Placeholders(Supplier<String> replaceWith) {
+            this.replaceWith = replaceWith;
+            this.requiresMemberArgument = false;
+        }
+
+        private String getSelfReplacement() {
+            return this.replaceWith.get();
+        }
+
+        private static final Pattern PATTERN = Pattern.compile("\\{([^{}]+)}");
+
+        public static String parse(String text) {
+            Matcher m = PATTERN.matcher(text);
+            Logger.debug("Parsing placeholders...");
+
+            StringBuilder result = new StringBuilder();
+
+            while (m.find()) {
+                String placeholder = m.group(1); // PING, MEMBER, etc.
+                Logger.debug("Found placeholder: {}", placeholder);
+
+                try {
+                    var pl = Placeholders.valueOf(placeholder);
+                    String replacement = pl.getSelfReplacement();
+
+                    m.appendReplacement(result, Matcher.quoteReplacement(replacement));
+                } catch (IllegalArgumentException e) {
+                    Logger.error("Unknown placeholder: {}", placeholder);
+                    m.appendReplacement(result, m.group(0)); // keep original
+                }
+            }
+
+            m.appendTail(result);
+            return result.toString();
+        }
+
+        public static String parse(String text, Member member) {
+            targetMember = member;
+            return parse(text);
+        }
+    }
 }

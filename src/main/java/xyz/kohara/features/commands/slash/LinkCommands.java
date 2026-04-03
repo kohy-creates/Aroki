@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.jetbrains.annotations.NotNull;
 import xyz.kohara.Aroki;
 import xyz.kohara.features.linking.LinkManager;
+import xyz.kohara.util.MinecraftUtils;
 
 import java.awt.*;
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class LinkCommands extends ListenerAdapter {
             if (LinkManager.isActiveCode(code)) {
                 if (LinkManager.linkMember(member, code)) {
                     try {
-                        event.reply(":white_check_mark: **Linked your account to Minecraft account `" + Aroki.getPlayerFromUUID(LinkManager.getLinked(member)) + "`**").setEphemeral(true).queue();
+                        event.reply(":white_check_mark: **Linked your account to Minecraft account `" + MinecraftUtils.getPlayerFromUUID(LinkManager.getLinked(member)) + "`**").setEphemeral(true).queue();
                     } catch (IOException | URISyntaxException e) {
                         throw new RuntimeException(e);
                     }
@@ -57,7 +58,7 @@ public class LinkCommands extends ListenerAdapter {
 
             String player;
             try {
-                player = Aroki.getPlayerFromUUID(uuid);
+                player = MinecraftUtils.getPlayerFromUUID(uuid);
             } catch (IOException | URISyntaxException e) {
                 throw new RuntimeException(e);
             }

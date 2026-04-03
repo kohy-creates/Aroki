@@ -36,7 +36,8 @@ public class Config {
         ADJ_INFO_CHANNEL(0),
         UNEPIC_ROLE_ID(1205080790006759424L),
         FINAL_UNEPIC_ROLE_ID(1383909149301014648L),
-        STELLARITY_SUPPORT_TAG_ID(1185567778191712257L);
+        STELLARITY_SUPPORT_TAG_ID(1185567778191712257L),
+        STATUS_CHANGE_INTERVAL("1:30:00");
 
         private final String defaultValue;
 
@@ -95,7 +96,6 @@ public class Config {
 
         CONFIG = loaded;
     }
-
 
     private static void tryCreateConfigFile() {
         File file = new File(configPath);
