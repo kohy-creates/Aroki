@@ -1,0 +1,2 @@
+java.lang.AbstractMethodError
+`AbstractMethodError` - Sinytra Connector likely did something wrong while translating Fabric mods over to Forge. Consider clearing Connector mod cache (delete folder `.connector` inside `mods` folder and relaunch the game).

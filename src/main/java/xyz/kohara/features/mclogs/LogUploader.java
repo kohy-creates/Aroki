@@ -2,11 +2,10 @@
 // Thankss uωu <3
 //
 // Edited by kohy
-package xyz.kohara.features;
+package xyz.kohara.features.mclogs;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
@@ -17,14 +16,10 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
-import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
-import xyz.kohara.Aroki;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -32,31 +27,9 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 public class LogUploader extends ListenerAdapter {
-
-    private static final Map<String, String> LOG_TIPS = Map.of(
-            "java.lang.OutOfMemoryError",
-            "`OutOfMemoryError` - JVM ran out of memory! Consider increasing your heap size.",
-
-            "java.lang.AbstractMethodError",
-            "`AbstractMethodError` - Sinytra Connector likely did something wrong while translating Fabric mods over to Forge. Consider clearing Connector mod cache (delete folder `.connector` inside `mods` folder and relaunch the game).",
-
-            "- Essential",
-            "`Essential` mod is redundant as ADJ has built-in world hosting feature, couretsy of the E4MC mod."
-    );
-
-    private static final List<String> DISCONTINUED_VERSIONS = List.of(
-            "1.20.4",
-            "1.20.6",
-            "1.21.1",
-            "1.21.4",
-            "1.21.7",
-            "1.21.8",
-            "1.21.6"
-    );
 
     private static final List<String> STORED_IDS = new ArrayList<>();
     private static final File LOGS_FOLDER = new File("logs_temp");
@@ -152,11 +125,11 @@ public class LogUploader extends ListenerAdapter {
             String originalName = entry.getValue();
 
             try {
-                UploadResult result = uploadToMclogs(tempFile);
-                uploads.put(originalName, result.apiResult);
+                LogUploadResult result = uploadToMcLogs(tempFile);
+                uploads.put(originalName, result.apiResult());
 
-                if (!result.tips.isEmpty()) {
-                    tips.put(originalName, result.tips);
+                if (!result.tips().isEmpty()) {
+                    tips.put(originalName, result.tips());
                 }
 
                 tempFile.delete();
@@ -207,7 +180,7 @@ public class LogUploader extends ListenerAdapter {
                     String name = data.get(1), type = data.get(2), version = data.get(3);
                     // This could also be inlined but I left it like this so that it's at least slightly easier to work with
                     String label = name + " " + type + " (" + version + ")";
-                    if (isDiscontinued(version)) {
+                    if (LogAnalyzerTools.isDiscontinued(version)) {
                         buttons.add(Button.danger(key, label)
                                 .withEmoji(Emoji.fromFormatted("📜"))
                                 .asDisabled()
@@ -232,27 +205,18 @@ public class LogUploader extends ListenerAdapter {
         }
     }
 
-    private UploadResult uploadToMclogs(File file) throws IOException {
+    private LogUploadResult uploadToMcLogs(File file) throws IOException {
+
+        List<String> list = Files.readAllLines(file.toPath());
+        List<String> tips = LogAnalyzerTools.Tips.getFor(list);
+
         StringBuilder sb = new StringBuilder();
-        List<String> tips = new ArrayList<>();
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append('\n');
-
-                for (String key : LOG_TIPS.keySet()) {
-                    if (line.contains(key) && !tips.contains(LOG_TIPS.get(key))) {
-                        tips.add(LOG_TIPS.get(key));
-                    }
-                }
-
-                if (sb.length() > 10_000_000) throw new IOException("Log too large");
-            }
+        for (var s : list) {
+            sb.append(s).append("\n");
         }
 
         try (CloseableHttpClient client = HttpClients.createDefault()) {
-            HttpPost post = new HttpPost("https://api.mclo.gs/1/log");
+            HttpPost post = new HttpPost("https://api.mclo.gs/1/log/");
             post.setEntity(new UrlEncodedFormEntity(
                     List.of(new BasicNameValuePair("content", sb.toString())),
                     StandardCharsets.UTF_8
@@ -272,7 +236,7 @@ public class LogUploader extends ListenerAdapter {
                 apiResult.add(url);
                 apiResult.addAll(getLogTitle(id));
 
-                return new UploadResult(tips, apiResult);
+                return new LogUploadResult(tips, apiResult);
             }
         }
     }
@@ -297,10 +261,6 @@ public class LogUploader extends ListenerAdapter {
         }
     }
 
-    private String jsonNodeField(JsonNode jsonNode, String name) {
-        return jsonNode.get(name).asText();
-    }
-
     private void decompressGzipFile(String gzipFile, String outputFile) {
         File gzip = new File(gzipFile);
         try (
@@ -318,26 +278,5 @@ public class LogUploader extends ListenerAdapter {
             e.printStackTrace();
         }
         gzip.delete();
-    }
-
-    private static boolean isDiscontinued(String version) {
-        for (String discontinuedPattern : DISCONTINUED_VERSIONS) {
-            String regex = discontinuedPattern.replace("*", ".*");
-            Pattern pattern = Pattern.compile(regex);
-            if (pattern.matcher(version).find()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static class UploadResult {
-        public List<String> tips;
-        public List<String> apiResult;
-
-        public UploadResult(List<String> tips, List<String> apiResult) {
-            this.tips = tips;
-            this.apiResult = apiResult;
-        }
     }
 }

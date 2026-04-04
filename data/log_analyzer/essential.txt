@@ -1,0 +1,2 @@
+- Essential
+`Essential` mod is redundant as ADJ has built-in world hosting feature, courtesy of the [**E4MC**](<https://www.curseforge.com/minecraft/mc-mods/e4mc>) mod. You can host your world by clicking the `Host World` button in your pause menu.
