@@ -3,6 +3,7 @@ package xyz.kohara.features.commands.slash;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import xyz.kohara.Aroki;
+import xyz.kohara.util.Placeholders;
 
 public class PingCommand extends ListenerAdapter {
 
@@ -13,7 +14,7 @@ public class PingCommand extends ListenerAdapter {
 					"**Hello {MEMBER}!** I'm {BOT_NAME}! :wave:" +
 					"\n* Current ping from your client to my server: {PING}ms" +
 					"\n* Member count of **{GUILD}**: {MEMBER_COUNT}";
-			event.reply(Aroki.Placeholders.parse(TEXT, event.getMember())).setEphemeral(true).queue();
+			event.reply(Placeholders.parse(TEXT, event.getMember())).setEphemeral(true).queue();
 		}
 	}
 }

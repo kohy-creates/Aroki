@@ -14,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
 import xyz.kohara.Aroki;
 import xyz.kohara.features.moderation.ModerationSaveData;
 import xyz.kohara.features.moderation.ModerationUtils;
+import xyz.kohara.util.Utils;
 
 import java.awt.*;
 import java.util.List;
@@ -41,7 +42,7 @@ public class WarnCommand extends ListenerAdapter {
                     .setColor(Color.GREEN)
                     .setDescription(
                             "***<@" + member.getId() + "> was warned.*** | " + reason + "\n" +
-                                    "This is their " + Aroki.ordinal(warnings.size()) + " warning."
+                                    "This is their " + Utils.ordinal(warnings.size()) + " warning."
                     );
 
             event.reply("").addEmbeds(builder.build()).queue();

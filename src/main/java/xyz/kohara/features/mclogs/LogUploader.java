@@ -20,8 +20,10 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
+import xyz.kohara.Aroki;
 
 import java.io.*;
+import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
@@ -72,6 +74,9 @@ public class LogUploader extends ListenerAdapter {
         validAttachments.forEach(att -> {
             var attachment = (Message.Attachment) att;
             String extension = attachment.getFileExtension();
+            if (extension == null) {
+                extension = "log";
+            }
             extension = extension.equals("gz") ? "info" : extension;
 
             File tempFile = new File(LOGS_FOLDER, "temp-" + UUID.randomUUID() + "." + extension);
@@ -99,14 +104,16 @@ public class LogUploader extends ListenerAdapter {
                     }
                 } catch (Exception e) {
                     tempFile.delete();
-                    channel.sendMessage(":x: Error saving file `" + attachment.getFileName() + "`").queue();
+                    channel.sendMessage(":x: Error saving file `" + attachment.getFileName() + "`" + "\n" + e.getMessage()).queue();
                     deleteLastUploadMessage(channel);
+                    throw new RuntimeException(e);
                 }
             });
         });
     }
 
     private void saveInputStreamToFile(InputStream inputStream, File file) throws IOException {
+        Aroki.Logger.debug("Saving log file {}", file.getName());
         try (FileOutputStream outputStream = new FileOutputStream(file)) {
             byte[] buffer = new byte[1024];
             int bytesRead;
@@ -135,6 +142,8 @@ public class LogUploader extends ListenerAdapter {
                 tempFile.delete();
             } catch (IOException e) {
                 event.getChannel().sendMessage(":warning: Error uploading file `" + originalName + "`").queue();
+                e.printStackTrace();
+                throw new RuntimeException(e);
             }
         }
 
@@ -207,7 +216,14 @@ public class LogUploader extends ListenerAdapter {
 
     private LogUploadResult uploadToMcLogs(File file) throws IOException {
 
-        List<String> list = Files.readAllLines(file.toPath());
+        List<String> list;
+        try {
+            list = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
+        } catch (MalformedInputException e) {
+            // fallback for weird encodings
+            list = Files.readAllLines(file.toPath(), StandardCharsets.ISO_8859_1);
+        }
+        
         List<String> tips = LogAnalyzerTools.Tips.getFor(list);
 
         StringBuilder sb = new StringBuilder();
@@ -262,6 +278,7 @@ public class LogUploader extends ListenerAdapter {
     }
 
     private void decompressGzipFile(String gzipFile, String outputFile) {
+        Aroki.Logger.debug("Decompressing GZIP file {}", gzipFile);
         File gzip = new File(gzipFile);
         try (
                 FileInputStream fileInputStream = new FileInputStream(gzip);

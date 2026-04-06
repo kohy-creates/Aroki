@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import xyz.kohara.features.commands.SlashCommands;
 import xyz.kohara.features.support.ForumManager;
 import xyz.kohara.status.BotActivity;
+import xyz.kohara.util.Placeholders;
 import xyz.kohara.web.WebServer;
 
 import javax.annotation.Nullable;
@@ -119,27 +120,6 @@ public class Aroki {
         sendDM(member.getUser(), text);
     }
 
-    public static String ordinal(int i) {
-        String[] suffixes = new String[]{"th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"};
-        return switch (i % 100) {
-            case 11, 12, 13 -> i + "th";
-            default -> i + suffixes[i % 10];
-        };
-    }
-
-    public static String smallUnicode(String s) {
-        Map<Character, Character> map = new HashMap<>();
-        String[] mappings = {"aᴀ", "bʙ", "cᴄ", "dᴅ", "eᴇ", "fꜰ", "gɢ", "hʜ", "iɪ", "jᴊ", "kᴋ", "lʟ", "mᴍ", "nɴ", "oᴏ", "pᴘ", "rʀ", "sѕ", "tᴛ", "uᴜ", "wᴡ", "xх", "yʏ", "zᴢ"};
-        for (String pair : mappings) {
-            map.put(pair.charAt(0), pair.charAt(1));
-        }
-        StringBuilder result = new StringBuilder();
-        for (char c : s.toCharArray()) {
-            result.append(map.getOrDefault(c, c));
-        }
-        return result.toString();
-    }
-
     public static class Logger {
 
         private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(Aroki.Logger.class);
@@ -181,83 +161,6 @@ public class Aroki {
 
         public static void debug(String text, Object... args) {
             LOGGER.debug(text, args);
-        }
-    }
-
-    public enum Placeholders {
-        MEMBER_COUNT(() -> String.valueOf(getServer().getMemberCount())),
-        GUILD(() -> getServer().getName()),
-        BOT_NAME(() -> getBot().getSelfUser().getAsMention()),
-        MEMBER(() -> {
-			if (getMember() == null) {
-                Logger.error("Error parsing placeholder MEMBER, getMember() is null");
-                return "ERROR";
-            }
-			return getMember().getAsMention();
-		}, true),
-        PING(() -> String.valueOf(getBot().getGatewayPing()));
-
-        private final Supplier<String> replaceWith;
-        private final boolean requiresMemberArgument;
-
-        private static @Nullable Member targetMember = null;
-        private static Member getMember() {
-            return targetMember;
-        }
-
-        public Placeholders setMember(Member m) {
-            targetMember = m;
-            return this;
-        }
-
-        Placeholders(Supplier<String> replaceWith, boolean requiresMemberArgument) {
-            this.replaceWith = replaceWith;
-            this.requiresMemberArgument = requiresMemberArgument;
-        }
-
-        Placeholders(Supplier<String> replaceWith) {
-            this.replaceWith = replaceWith;
-            this.requiresMemberArgument = false;
-        }
-
-        private String getSelfReplacement() {
-            return this.replaceWith.get();
-        }
-
-        private static final Pattern PATTERN = Pattern.compile("\\{([^{}]+)}");
-
-        public static String parse(String text) {
-            Matcher m = PATTERN.matcher(text);
-            Logger.debug("Parsing placeholders...");
-            if (!m.find()) {
-                Logger.debug("No placeholders found!");
-                return text;
-            }
-
-            StringBuilder result = new StringBuilder();
-
-            while (m.find()) {
-                String placeholder = m.group(1); // PING, MEMBER, etc.
-                Logger.debug("Found placeholder: {}", placeholder);
-
-                try {
-                    var pl = Placeholders.valueOf(placeholder);
-                    String replacement = pl.getSelfReplacement();
-
-                    m.appendReplacement(result, Matcher.quoteReplacement(replacement));
-                } catch (IllegalArgumentException e) {
-                    Logger.error("Unknown placeholder: {}", placeholder);
-                    m.appendReplacement(result, m.group(0)); // keep original
-                }
-            }
-
-            m.appendTail(result);
-            return result.toString();
-        }
-
-        public static String parse(String text, Member member) {
-            targetMember = member;
-            return parse(text);
         }
     }
 }

@@ -3,6 +3,7 @@ package xyz.kohara.status;
 import net.dv8tion.jda.api.entities.Activity;
 import xyz.kohara.Aroki;
 import xyz.kohara.Config;
+import xyz.kohara.util.Placeholders;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,7 +61,7 @@ public class BotActivity {
 
         private Activity getRandomActivity() {
             var str = ACTIVITIES.get(random.nextInt(ACTIVITIES.size()));
-            return Activity.customStatus(Aroki.Placeholders.parse(str));
+            return Activity.customStatus(Placeholders.parse(str));
         }
     }
 }
